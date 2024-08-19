@@ -1,48 +1,73 @@
-#############################
-# Global vars
-#############################
-PROJECT_NAME := $(shell basename $(shell pwd))
-PROJECT_VER  ?= $(shell git describe --tags --always --dirty --match 'v*' | sed -e '/^v/s/^v\(.*\)$$/\1/g')
-# Last released version (not dirty)
-PROJECT_VER_TAGGED  := $(shell git describe --tags --always --abbrev=0 --match 'v*' | sed -e '/^v/s/^v\(.*\)$$/\1/g')
+# Define variables
+BINARY_NAME := nrms
+BUILD_DIR := build
+CMD_DIR := cmd/newrelic/metric/selector
 
-SRCDIR       ?= .
-GO            = go
+.PHONY: all clean build lint test build-linux build-mac
 
-# The root module (from go.mod)
-PROJECT_MODULE  ?= $(shell $(GO) list -m)
-
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
-
-#############################
-# Targets
-#############################
+# Default target
 all: build
 
-# Humans running make:
-build: git-hooks check-version clean lint test compile
+# Clean build directory
+clean:
+	@echo "Cleaning build directory..."
+	@rm -rf $(BUILD_DIR)/*
+	@rm -rf bin/*
 
-# Build command for CI tooling
-build-ci: check-version clean lint test compile-only
+# Build the nrms binary for the current platform
+build:
+	@echo "Building $(BINARY_NAME) for current platform..."
+	@mkdir -p bin
+	@cd $(CMD_DIR) && GO111MODULE=on go build -o ../../../../bin/$(BINARY_NAME)
 
-# All clean commands
-clean: cover-clean compile-clean release-clean
+# Build the nrms binary for Linux
+build-linux:
+	@echo "Building $(BINARY_NAME) for Linux..."
+	@mkdir -p bin
+	@cd $(CMD_DIR) && GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o ../../../../bin/$(BINARY_NAME)-linux
 
-# Import fragments
-include build/compile.mk
-include build/deps.mk
-include build/docker.mk
-include build/document.mk
-include build/generate.mk
-include build/lint.mk
-include build/release.mk
-include build/test.mk
-include build/tools.mk
-include build/util.mk
+# Build the nrms binary for macOS
+build-mac:
+	@echo "Building $(BINARY_NAME) for macOS..."
+	@mkdir -p bin
+	@cd $(CMD_DIR) && GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -o ../../../../bin/$(BINARY_NAME)-mac
 
-.PHONY: all build build-ci clean
+# Lint the code
+lint:
+	@echo "Linting the code..."
+	@golangci-lint run
+
+# Run tests
+test:
+	@echo "Running tests..."
+	@go test ./...
+
+# Install dependencies
+deps:
+	@echo "Installing dependencies..."
+	@go mod tidy
+
+# Check commit message format
+lint-commit:
+	@echo "Checking commit message format..."
+	@git log -1 --pretty=%B | grep -P '^(chore|docs|feat|fix|refactor|test|tests?)\s?(\([^\)]+\))?!?: .+$$' || (echo "Commit message format is incorrect" && exit 1)
+
+# Default target for tools
+tools: deps lint test lint-commit build
+
+# Help message
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all          - Build the project (default)"
+	@echo "  clean        - Clean the build directory"
+	@echo "  build        - Build the nrms binary for the current platform"
+	@echo "  build-linux  - Build the nrms binary for Linux"
+	@echo "  build-mac    - Build the nrms binary for macOS"
+	@echo "  lint         - Lint the code"
+	@echo "  test         - Run tests"
+	@echo "  deps         - Install dependencies"
+	@echo "  lint-commit  - Check commit message format"
+	@echo "  tools        - Run all tools (deps, lint, test, lint-commit, build)"
+	@echo "  help         - Show this help message"

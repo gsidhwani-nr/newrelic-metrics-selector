@@ -1,0 +1,131 @@
+package main
+
+import (
+	"strconv"
+
+	"github.com/newrelic/newrelic-client-go/v2/newrelic"
+	log "github.com/sirupsen/logrus"
+)
+
+func fetchDashboardQueries(client *newrelic.NewRelic, accountIDStr string) ([]string, error) {
+	log.Infof("Fetching dashboard queries")
+
+	query := `query($accountId: Int!) {
+		actor {
+			entitySearch(query: "type = 'DASHBOARD'") {
+				results {
+					entities {
+						... on DashboardEntityOutline {
+							name
+							guid
+						}
+					}
+				}
+			}
+			account(id: $accountId) {
+				id
+			}
+		}
+	}`
+
+	accountID, err := strconv.Atoi(accountIDStr)
+	if err != nil {
+		log.Error("Invalid account ID: ", err)
+		return nil, err
+	}
+
+	vars := map[string]interface{}{
+		"accountId": accountID,
+	}
+
+	resp := struct {
+		Actor struct {
+			EntitySearch struct {
+				Results struct {
+					Entities []struct {
+						Name string `json:"name"`
+						GUID string `json:"guid"`
+					} `json:"entities"`
+				} `json:"results"`
+			} `json:"entitySearch"`
+			Account struct {
+				ID int `json:"id"`
+			} `json:"account"`
+		} `json:"actor"`
+	}{}
+
+	log.Debug("Executing GraphQL query to fetch dashboard GUIDs")
+	err = client.NerdGraph.QueryWithResponse(query, vars, &resp)
+	if err != nil {
+		log.Error("Error executing GraphQL query: ", err)
+		return nil, err
+	}
+
+	var queries []string
+	for _, entity := range resp.Actor.EntitySearch.Results.Entities {
+		dashboardQueries, err := fetchDashboardDetails(client, entity.GUID)
+		if err != nil {
+			log.Error("Error fetching dashboard details: ", err)
+			continue
+		}
+		queries = append(queries, dashboardQueries...)
+	}
+	log.Debugf("Fetched %d dashboard queries", len(queries))
+
+	return queries, nil
+}
+
+func fetchDashboardDetails(client *newrelic.NewRelic, guid string) ([]string, error) {
+	query := `query GetDashboardEntityQuery($entityGuid: EntityGuid!) {
+		actor {
+			entity(guid: $entityGuid) {
+				... on DashboardEntity {
+					pages {
+						widgets {
+							rawConfiguration
+						}
+					}
+				}
+			}
+		}
+				}`
+
+	vars := map[string]interface{}{
+		"entityGuid": guid,
+	}
+
+	resp := struct {
+		Actor struct {
+			Entity struct {
+				Pages []struct {
+					Widgets []struct {
+						RawConfiguration struct {
+							NrqlQueries []struct {
+								Query string `json:"query"`
+							} `json:"nrqlQueries"`
+						} `json:"rawConfiguration"`
+					} `json:"widgets"`
+				} `json:"pages"`
+			} `json:"entity"`
+		} `json:"actor"`
+	}{}
+
+	log.Debug("Executing GraphQL query to fetch dashboard details")
+	err := client.NerdGraph.QueryWithResponse(query, vars, &resp)
+	if err != nil {
+		log.Error("Error executing GraphQL query: ", err)
+		return nil, err
+	}
+
+	var queries []string
+	for _, page := range resp.Actor.Entity.Pages {
+		for _, widget := range page.Widgets {
+			for _, nrqlQuery := range widget.RawConfiguration.NrqlQueries {
+				queries = append(queries, nrqlQuery.Query)
+			}
+		}
+	}
+	log.Debugf("Fetched %d NRQL queries from dashboard %s", len(queries), guid)
+
+	return queries, nil
+}
