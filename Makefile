@@ -1,9 +1,11 @@
 # Define variables
 BINARY_NAME := nrms
+VERSION := 1.0.0
 BUILD_DIR := build
+BIN_DIR := bin
 CMD_DIR := cmd/newrelic/metric/selector
 
-.PHONY: all clean build lint test build-linux build-mac
+.PHONY: all clean build lint test build-linux build-mac package-linux package-mac
 
 # Default target
 all: build
@@ -12,25 +14,37 @@ all: build
 clean:
 	@echo "Cleaning build directory..."
 	@rm -rf $(BUILD_DIR)/*
-	@rm -rf bin/*
+	@rm -rf $(BIN_DIR)/*
 
 # Build the nrms binary for the current platform
 build:
 	@echo "Building $(BINARY_NAME) for current platform..."
-	@mkdir -p bin
-	@cd $(CMD_DIR) && GO111MODULE=on go build -o ../../../../bin/$(BINARY_NAME)
+	@mkdir -p $(BIN_DIR)
+	GO111MODULE=on go build -o $(BIN_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
 # Build the nrms binary for Linux
 build-linux:
 	@echo "Building $(BINARY_NAME) for Linux..."
-	@mkdir -p bin
-	@cd $(CMD_DIR) && GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o ../../../../bin/$(BINARY_NAME)-linux
+	@mkdir -p $(BIN_DIR)
+	GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
 # Build the nrms binary for macOS
 build-mac:
 	@echo "Building $(BINARY_NAME) for macOS..."
-	@mkdir -p bin
-	@cd $(CMD_DIR) && GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -o ../../../../bin/$(BINARY_NAME)-mac
+	@mkdir -p $(BIN_DIR)
+	GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -o $(BIN_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+
+# Package the nrms binary for Linux
+package-linux: build-linux
+	@echo "Packaging $(BINARY_NAME) for Linux..."
+	@mkdir -p $(BUILD_DIR)
+	@tar -czvf $(BUILD_DIR)/$(BINARY_NAME)-linux-$(VERSION).tar.gz -C $(BIN_DIR) $(BINARY_NAME)
+
+# Package the nrms binary for macOS
+package-mac: build-mac
+	@echo "Packaging $(BINARY_NAME) for macOS..."
+	@mkdir -p $(BUILD_DIR)
+	@tar -czvf $(BUILD_DIR)/$(BINARY_NAME)-mac-$(VERSION).tar.gz -C $(BIN_DIR) $(BINARY_NAME)
 
 # Lint the code
 lint:
@@ -65,6 +79,8 @@ help:
 	@echo "  build        - Build the nrms binary for the current platform"
 	@echo "  build-linux  - Build the nrms binary for Linux"
 	@echo "  build-mac    - Build the nrms binary for macOS"
+	@echo "  package-linux - Package the nrms binary for Linux"
+	@echo "  package-mac  - Package the nrms binary for macOS"
 	@echo "  lint         - Lint the code"
 	@echo "  test         - Run tests"
 	@echo "  deps         - Install dependencies"
