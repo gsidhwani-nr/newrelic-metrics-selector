@@ -38,6 +38,16 @@ func fetchPrometheusMetrics(client *newrelic.NewRelic) ([]string, error) {
 		"accountId": accountID,
 	}
 
+	// Set the default NRQL query
+	defaultQuery := "SELECT uniques(metricName) FROM Metric WHERE (instrumentation.name = 'remote-write') AND (instrumentation.provider = 'prometheus')"
+
+	// Check if the environment variable is set and override the default query if needed
+	nrqlQuery := os.Getenv("NRQL_PROMETHEUS_METRICS")
+	if nrqlQuery == "" {
+		nrqlQuery = defaultQuery
+	}
+	log.Info("Executing NRQL : ", nrqlQuery)
+
 	var metrics []string
 	limit := 1000
 	lastFetchedMetric := ""
@@ -48,7 +58,7 @@ func fetchPrometheusMetrics(client *newrelic.NewRelic) ([]string, error) {
 			whereClause = fmt.Sprintf("AND metricName > '%s'", lastFetchedMetric)
 		}
 
-		query := fmt.Sprintf("SELECT uniques(metricName) FROM Metric WHERE (instrumentation.name = 'remote-write') AND (instrumentation.provider = 'prometheus') %s LIMIT %d", whereClause, limit)
+		query := fmt.Sprintf("%s %s LIMIT %d", nrqlQuery, whereClause, limit)
 
 		log.Debug("Executing NRQL query to fetch Prometheus metrics")
 		err = client.NerdGraph.QueryWithResponse(`query($accountId: Int!) {

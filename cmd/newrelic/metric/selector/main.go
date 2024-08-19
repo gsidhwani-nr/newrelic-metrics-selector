@@ -13,6 +13,17 @@ import (
 )
 
 func main() {
+	// Set the log level based on the environment variable
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info" // Default to info level if not set
+	}
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		log.Fatalf("Invalid log level: %v", err)
+	}
+	log.SetLevel(level)
+
 	// Define CLI flags
 	help := flag.Bool("help", false, "Show help message")
 	flag.Parse()
@@ -22,8 +33,10 @@ func main() {
 		fmt.Println("Options:")
 		fmt.Println("  --help     Show help message")
 		fmt.Println("Environment Variables:")
-		fmt.Println("  NEW_RELIC_API_KEY     Your New Relic API key")
-		fmt.Println("  NEW_RELIC_ACCOUNT_ID  Your New Relic account ID")
+		fmt.Println("  NEW_RELIC_API_KEY        Your New Relic API key")
+		fmt.Println("  NEW_RELIC_ACCOUNT_ID     Your New Relic account ID")
+		fmt.Println("  NRQL_PROMETHEUS_METRICS  NRQL query to fetch Prometheus metrics (optional)")
+		fmt.Println("  LOG_LEVEL                Log level (optional, e.g., 'debug', 'info', 'warn', 'error')")
 		return
 	}
 
