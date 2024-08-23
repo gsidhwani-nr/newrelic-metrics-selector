@@ -7,14 +7,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func fetchAlertQueries(client *newrelic.NewRelic, accountIDStr string) ([]string, error) {
-	log.Infof("Fetching alert queries")
+func fetchAlertQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr string) ([]string, error) {
+	log.Infof("Using API key in fetchAlertQueries: %s", maskedAPIKey)
 
-	query := `query($accountId: Int!) {
+	query := `query($accountId: Int!, $cursor: String) {
 		actor {
 			account(id: $accountId) {
 				alerts {
-					nrqlConditionsSearch {
+					nrqlConditionsSearch(cursor: $cursor) {
+						nextCursor
 						nrqlConditions {
 							nrql {
 								query
@@ -34,33 +35,50 @@ func fetchAlertQueries(client *newrelic.NewRelic, accountIDStr string) ([]string
 
 	vars := map[string]interface{}{
 		"accountId": accountID,
+		"cursor":    nil,
 	}
 
-	resp := struct {
-		Actor struct {
-			Account struct {
-				Alerts struct {
-					NrqlConditionsSearch struct {
-						NrqlConditions []struct {
-							Nrql struct {
-								Query string `json:"query"`
-							} `json:"nrql"`
-						} `json:"nrqlConditions"`
-					} `json:"nrqlConditionsSearch"`
-				} `json:"alerts"`
-			} `json:"account"`
-		} `json:"actor"`
-	}{}
+	var allConditions []struct {
+		Nrql struct {
+			Query string `json:"query"`
+		} `json:"nrql"`
+	}
 
-	log.Debug("Executing GraphQL query to fetch alert queries")
-	err = client.NerdGraph.QueryWithResponse(query, vars, &resp)
-	if err != nil {
-		log.Error("Error executing GraphQL query: ", err)
-		return nil, err
+	for {
+		resp := struct {
+			Actor struct {
+				Account struct {
+					Alerts struct {
+						NrqlConditionsSearch struct {
+							NextCursor     *string `json:"nextCursor"`
+							NrqlConditions []struct {
+								Nrql struct {
+									Query string `json:"query"`
+								} `json:"nrql"`
+							} `json:"nrqlConditions"`
+						} `json:"nrqlConditionsSearch"`
+					} `json:"alerts"`
+				} `json:"account"`
+			} `json:"actor"`
+		}{}
+
+		log.Debug("Executing GraphQL query to fetch alert queries")
+		err = client.NerdGraph.QueryWithResponse(query, vars, &resp)
+		if err != nil {
+			log.Error("Error executing GraphQL query: ", err)
+			return nil, err
+		}
+
+		allConditions = append(allConditions, resp.Actor.Account.Alerts.NrqlConditionsSearch.NrqlConditions...)
+
+		if resp.Actor.Account.Alerts.NrqlConditionsSearch.NextCursor == nil {
+			break
+		}
+		vars["cursor"] = *resp.Actor.Account.Alerts.NrqlConditionsSearch.NextCursor
 	}
 
 	var queries []string
-	for _, condition := range resp.Actor.Account.Alerts.NrqlConditionsSearch.NrqlConditions {
+	for _, condition := range allConditions {
 		queries = append(queries, condition.Nrql.Query)
 	}
 	log.Debugf("Fetched %d alert queries", len(queries))

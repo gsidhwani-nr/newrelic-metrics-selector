@@ -81,14 +81,14 @@ func main() {
 	log.Infof("Fetched %d Prometheus metrics", len(prometheusMetrics))
 
 	// Step 2: Fetch all dashboard definitions
-	dashboardQueries, err := fetchDashboardQueries(client, accountIDStr)
+	dashboardQueries, err := fetchDashboardQueries(client, maskedAPIKey, accountIDStr)
 	if err != nil {
 		log.Fatal("error fetching dashboard queries:", err)
 	}
 	log.Infof("Fetched %d dashboard queries", len(dashboardQueries))
 
 	// Step 3: Fetch all alert definitions
-	alertQueries, err := fetchAlertQueries(client, accountIDStr)
+	alertQueries, err := fetchAlertQueries(client, maskedAPIKey, accountIDStr)
 	if err != nil {
 		log.Fatal("error fetching alert queries:", err)
 	}
