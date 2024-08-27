@@ -8,7 +8,7 @@ import (
 )
 
 func fetchAlertQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr string) ([]string, error) {
-	log.Infof("Using API key in fetchAlertQueries: %s", maskedAPIKey)
+	log.Debugf("Using API key in fetchAlertQueries: %s", maskedAPIKey)
 
 	query := `query($accountId: Int!, $cursor: String) {
 		actor {

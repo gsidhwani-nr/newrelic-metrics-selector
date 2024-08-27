@@ -26,12 +26,14 @@ func main() {
 
 	// Define CLI flags
 	help := flag.Bool("help", false, "Show help message")
+	version := flag.Bool("version", false, "Show version")
 	flag.Parse()
 
 	if *help {
 		fmt.Println("Usage: nrms [options]")
 		fmt.Println("Options:")
 		fmt.Println("  --help     Show help message")
+		fmt.Println("  --version  Show version")
 		fmt.Println("Environment Variables:")
 		fmt.Println("  NEW_RELIC_API_KEY        Your New Relic API key")
 		fmt.Println("  NEW_RELIC_ACCOUNT_ID     Your New Relic account ID")
@@ -40,6 +42,10 @@ func main() {
 		return
 	}
 
+	if *version {
+		fmt.Printf("nrms version %s\n", Version)
+		return
+	}
 	// Ensure the API key is set
 	apiKey := os.Getenv("NEW_RELIC_API_KEY")
 	if apiKey == "" {
