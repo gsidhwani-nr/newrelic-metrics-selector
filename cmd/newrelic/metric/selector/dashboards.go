@@ -18,8 +18,8 @@ func fetchDashboardQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr
 						... on DashboardEntityOutline {
 							name
 							guid
-							owner {
-								email
+							account {
+								id
 							}
 						}
 					}
@@ -44,11 +44,11 @@ func fetchDashboardQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr
 	}
 
 	var allEntities []struct {
-		Name  string `json:"name"`
-		GUID  string `json:"guid"`
-		Owner struct {
-			Email string `json:"email"`
-		} `json:"owner"`
+		Name    string `json:"name"`
+		GUID    string `json:"guid"`
+		Account struct {
+			ID int `json:"id"`
+		} `json:"account"`
 	}
 
 	for {
@@ -57,11 +57,11 @@ func fetchDashboardQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr
 				EntitySearch struct {
 					Results struct {
 						Entities []struct {
-							Name  string `json:"name"`
-							GUID  string `json:"guid"`
-							Owner struct {
-								Email string `json:"email"`
-							} `json:"owner"`
+							Name    string `json:"name"`
+							GUID    string `json:"guid"`
+							Account struct {
+								ID int `json:"id"`
+							} `json:"account"`
 						} `json:"entities"`
 						NextCursor *string `json:"nextCursor"`
 					} `json:"results"`
@@ -78,15 +78,13 @@ func fetchDashboardQueries(client *newrelic.NewRelic, maskedAPIKey, accountIDStr
 			log.Error("Error executing GraphQL query: ", err)
 			return nil, err
 		}
-		/*
-			for _, entity := range resp.Actor.EntitySearch.Results.Entities {
-				if !strings.Contains(entity.Owner.Email, "deleted") {  // keep deleted owner's dashboard as well
-				allEntities = append(allEntities, entity)
-					}
-			}
-		*/
-		allEntities = append(allEntities, resp.Actor.EntitySearch.Results.Entities...)
 
+		for _, entity := range resp.Actor.EntitySearch.Results.Entities {
+			if entity.Account.ID == accountID {
+				allEntities = append(allEntities, entity)
+				log.Debugf("Fetched dashboard Name: %s : %s ", entity.Name, entity.GUID)
+			}
+		}
 		if resp.Actor.EntitySearch.Results.NextCursor == nil {
 			break
 		}
